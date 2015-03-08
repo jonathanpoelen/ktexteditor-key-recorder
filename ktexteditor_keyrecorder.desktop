@@ -1,0 +1,22 @@
+[Desktop Entry]
+Type=Service
+Comment=Record a key sequence
+Comment[fr]=Enregistrer une séquence de touches
+Name=KeyRecorder
+GenericName=KeyRecorder
+Icon=kate
+ServiceTypes=KTextEditor/Plugin
+X-KDE-ServiceTypes=KTextEditor/Plugin
+X-KDE-Library=ktexteditor_keyrecorder
+X-KDE-PluginKeyword=ktexteditor_keyrecorder
+X-KDE-PluginInfo-Name=ktexteditor_keyrecorder
+X-KDE-PluginInfo-Author=Jonathan Poelen
+X-KDE-PluginInfo-Email=jonathan.poelen+KeyRecorder@gmail.com
+X-KDE-PluginInfo-Website=https://github.com/jonathanpoelen/kdevelop-plugin-move-split-view
+X-KDE-PluginInfo-Version=0.1
+X-KDE-PluginInfo-License=LGPLV3
+X-KDE-PluginInfo-EnabledByDefault=false
+# X-KDE-PluginInfo-Depends=
+X-KDE-PluginInfo-Category=Editor
+X-KDE-ParentApp=kate
+X-KDE-Version=4.0
