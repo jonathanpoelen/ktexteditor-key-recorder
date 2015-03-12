@@ -95,15 +95,19 @@ KeyRecorderView::~KeyRecorderView()
 // // do stuff
 // }
 
-
 void KeyRecorderView::insertKeyRecorder()
 {
   if (recording) {
-    recording = false;
-//     qApp->removeEventFilter(this);
-    m_view->focusProxy()->removeEventFilter(this);
+    if (!event_obj) {
+      qDebug() << "is locked";
+      return ;
+    }
+//     m_view->focusProxy()->removeEventFilter(this);
+    event_obj->removeEventFilter(this);
+    event_obj = nullptr;
 
     qDebug() << "-----";
+    qDebug() << "focusOut " << qApp->focusWidget();
 
     int prev_key = 0;
     QEvent::Type prev_type = QEvent::None;
@@ -143,8 +147,9 @@ void KeyRecorderView::insertKeyRecorder()
         QKeyEvent event(
           kevent.text.isEmpty() ? QEvent::KeyPress : kevent.type
         , kevent.key, kevent.modifiers, kevent.text);
-        QApplication::sendEvent(m_view->focusProxy(), &event);
-//         QApplication::sendEvent(qApp->focusWidget(), &event);
+//         QApplication::sendEvent(m_view->focusProxy(), &event);
+        QApplication::sendEvent(qApp->focusWidget(), &event);
+//         QApplication::postEvent(m_view->focusProxy(), event);
       }
 
       prev_key = kevent.key;
@@ -200,11 +205,14 @@ void KeyRecorderView::insertKeyRecorder()
 // //     }
 
     qDebug() << "clear";
+    recording = false;
   }
   else {
     recording = true;
+    event_obj = m_view->focusProxy();
+    event_obj->installEventFilter(this);
 //     qApp->installEventFilter(this);
-    m_view->focusProxy()->installEventFilter(this);
+//     m_view->focusProxy()->installEventFilter(this);
 //     KTextEditor::Message * message = new KTextEditor::Message("start record");
 // //     message->setView(m_view);
 //     message->setWordWrap(true);
@@ -223,16 +231,36 @@ void KeyRecorderView::insertKeyRecorder()
 
 bool KeyRecorderView::eventFilter(QObject* obj, QEvent* event)
 {
-  if (obj != m_view->focusProxy()) {
-    return false;
+//   if (obj != m_view->focusProxy()) {
+//     if (obj != qApp->focusWidget()) {
+//       return false;
+//     }
+//   }
+
+  QEvent::Type const type = event->type();
+
+  if (type == QEvent::ShortcutOverride) {
+    qDebug() << "ShortcutOverride ";
+  }
+  if (type == QEvent::FocusOut) {
+    if (qApp->focusWidget()) {
+      event_obj->removeEventFilter(this);
+      event_obj = qApp->focusWidget();
+      event_obj->installEventFilter(this);
+    }
+    qDebug() << "focusOut " << obj << ' ' << qApp->focusWidget();
+  }
+  if (type == QEvent::FocusIn) {
+    qDebug() << "focusIn " << obj;
   }
 
-  if ((event->type() == QEvent::KeyPress
-    || event->type() == QEvent::KeyRelease
-   //|| event->type() == QEvent::ShortcutOverride
+  if ((type == QEvent::KeyPress
+    || type == QEvent::KeyRelease
+   //|| type == QEvent::ShortcutOverride
    // vimode double event filter
    ) && event->spontaneous()
   ) {
+    qDebug() << m_view->focusProxy() << ' ' << qApp->focusWidget() << ' ' << obj;
     const auto kevent = static_cast<QKeyEvent*>(event);
 
     switch (kevent->key()) {

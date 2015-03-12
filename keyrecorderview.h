@@ -30,6 +30,7 @@ private:
 
   QList<Key> kevents;
   bool recording = false;
+  QObject * event_obj = nullptr;
 };
 
 #endif
