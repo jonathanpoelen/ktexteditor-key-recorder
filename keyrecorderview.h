@@ -6,6 +6,8 @@
 #include <QKeyEvent>
 #include <KXMLGUIClient>
 
+class QAction;
+
 class KeyRecorderView : public QObject, public KXMLGUIClient
 {
 	Q_OBJECT
@@ -15,6 +17,7 @@ public:
 
 private slots:
   void insertKeyRecorder();
+  void actionTriggered(QAction*);
 
 private:
   bool eventFilter(QObject* obj, QEvent* event);
@@ -22,15 +25,17 @@ private:
   KTextEditor::View *m_view;
 
   struct Key {
-    QEvent::Type type;
-    int key;
-    Qt::KeyboardModifiers modifiers;
+    QAction * action;
     QString text;
+    QEvent::Type type;
+    Qt::KeyboardModifiers modifiers;
+    int key;
   };
 
   QList<Key> kevents;
-  bool recording = false;
   QObject * event_obj = nullptr;
+  bool recording = false;
+  bool in_context_menu = false;
 };
 
 #endif

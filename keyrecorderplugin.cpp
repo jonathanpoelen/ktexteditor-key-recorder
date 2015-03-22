@@ -15,6 +15,7 @@
 #include <kapplication.h>
 #include <QApplication>
 #include <QDesktopWidget>
+#include <QMenu>
 
 K_PLUGIN_FACTORY(KeyRecorderPluginFactory, registerPlugin<KeyRecorderPlugin>("ktexteditor_keyrecorder");)
 K_EXPORT_PLUGIN(KeyRecorderPluginFactory(KAboutData(
@@ -95,6 +96,19 @@ KeyRecorderView::~KeyRecorderView()
 // // do stuff
 // }
 
+
+void KeyRecorderView::actionTriggered(QAction* a)
+{
+  // TODO What to do if "A" is destroyed? Search by name?
+  kevents.append(KeyRecorderView::Key{
+    a
+  , {} /*a->objectName()*/
+  , QEvent::Type()
+  , 0
+  , 0
+  });
+}
+
 void KeyRecorderView::insertKeyRecorder()
 {
   if (recording) {
@@ -103,114 +117,55 @@ void KeyRecorderView::insertKeyRecorder()
       return ;
     }
 //     m_view->focusProxy()->removeEventFilter(this);
+
+    disconnect(m_view->actionCollection(), SIGNAL(actionTriggered(QAction*))
+    , this, SLOT(actionTriggered(QAction*)));
     event_obj->removeEventFilter(this);
     event_obj = nullptr;
 
     qDebug() << "-----";
-    qDebug() << "focusOut " << qApp->focusWidget();
+    qDebug() << "focusWidget " << qApp->focusWidget();
 
-    int prev_key = 0;
-    QEvent::Type prev_type = QEvent::None;
+    // NOTE removes the last keyboard
+//     if (!kevents.empty()) {
+//       kevents.pop_back();
+//     }
+
     for (auto & kevent : kevents) {
-      qDebug() <<  kevent.type << ' ' << kevent.key << ' ' << kevent.modifiers << ' ' << kevent.text;
+      qDebug() <<  kevent.type << ' ' << kevent.key << ' ' << kevent.modifiers << ' ' << kevent.text << ' ' << kevent.action;
+
+      /// TODO not event if focus is a KMenu(/QMenu) (add contexte in kevent)
 
       // si release mais pas de press alors shortcut
 
-      if (kevent.modifiers && kevent.type == QEvent::KeyRelease
-       && (prev_key != kevent.key || prev_type != QEvent::KeyPress)
-      ) {
-        qDebug() << "QEvent::ShortcutOverride";
-        int k = kevent.key;
-        if (kevent.modifiers & Qt::META) {
-          k += Qt::META;
-        }
-        if (kevent.modifiers & Qt::CTRL) {
-          k += Qt::CTRL;
-        }
-        if (kevent.modifiers & Qt::ALT) {
-          k += Qt::ALT;
-        }
-        if (kevent.modifiers & Qt::SHIFT) {
-          k += Qt::SHIFT;
-        }
-        QKeySequence keyseq(k);
-        for (QAction * action : m_view->actionCollection()->actions()) {
-          KAction * kaction = static_cast<KAction*>(action);
-          //qDebug() << kaction->text() << ": " <<  kaction->shortcut();
-          if (kaction->shortcut().contains(keyseq)) {
-            kaction->trigger();
-            break;
-          }
-        }
+      if (kevent.action) {
+        kevent.action->trigger();
       }
       else {
         QKeyEvent event(
           kevent.text.isEmpty() ? QEvent::KeyPress : kevent.type
         , kevent.key, kevent.modifiers, kevent.text);
-//         QApplication::sendEvent(m_view->focusProxy(), &event);
+        qDebug() << "focusWidget: " << qApp->focusWidget();
         QApplication::sendEvent(qApp->focusWidget(), &event);
-//         QApplication::postEvent(m_view->focusProxy(), event);
       }
 
-      prev_key = kevent.key;
-      prev_type = kevent.type;
+//       qDebug() << "position: " << m_view->cursorPosition();
     }
     kevents.clear();
-
-//     {
-//       QKeyEvent event(
-//         QEvent::KeyRelease, 86
-//       , Qt::KeyboardModifiers(0x4000000));
-//       QApplication::sendEvent(m_view->focusProxy(), &event);
-//     }
-//     {
-//       QKeyEvent event(
-//         QEvent::ShortcutOverride, 86
-//       , Qt::KeyboardModifiers(0x4000000));
-// //       QApplication::sendEvent(m_view->focusProxy(), &event);
-//       qDebug() << QApplication::sendEvent(m_view->focusProxy(), &event);
-//
-//       for (QAction * action : m_view->actionCollection()->actions()) {
-//         KAction * kaction = static_cast<KAction*>(action);
-//         qDebug() << kaction->text() << ": " <<  kaction->shortcut();
-//         if (kaction->shortcut().contains(QKeySequence(Qt::CTRL + Qt::Key_H))) {
-//           kaction->trigger();
-//         }
-//       }
-//     }
-//     {
-//       QKeyEvent event(QEvent::KeyRelease, 86, Qt::KeyboardModifiers(0x4000000));
-// //       QShortcutEvent event(Qt::CTRL + Qt::Key_B, 1);
-// //       QKeyEvent event(QEvent::KeyPress, 61, Qt::KeyboardModifiers(), "a");
-// //       QApplication::sendEvent(m_view->focusProxy(), &event);
-//       qDebug() << QApplication::sendEvent(m_view->focusProxy(), &event);
-// //       qDebug() << QApplication::sendEvent(m_view, &event);
-// //       qDebug() << QApplication::sendEvent(m_view->document(), &event);
-// //       qDebug() << QApplication::sendEvent(m_view->actionCollection(), &event);
-// //       qDebug() << QApplication::sendEvent(m_view->focusWidget(), &event);
-// // //       qDebug() << QApplication::sendEvent(m_view->keyboardGrabber(), &event);
-// //       qDebug() << QApplication::sendEvent(m_view->window(), &event);
-// //       qDebug() << QApplication::sendEvent(m_view->parentWidget(), &event);
-//     }
-//     {
-//       QKeyEvent event(QEvent::KeyRelease, 61, Qt::KeyboardModifiers(), "a");
-// //       QApplication::sendEvent(m_view->focusProxy(), &event);
-//       QApplication::sendEvent(m_view->focusProxy(), &event);
-//     }
-// //     {
-// //       QKeyEvent event(
-// //         QEvent::KeyRelease, 86
-// //       , Qt::KeyboardModifiers(0x4000000));
-// //       QApplication::sendEvent(m_view->focusProxy(), &event);
-// //     }
 
     qDebug() << "clear";
     recording = false;
   }
   else {
     recording = true;
+    in_context_menu = false;
     event_obj = m_view->focusProxy();
     event_obj->installEventFilter(this);
+
+    connect(
+      m_view->actionCollection(), SIGNAL(actionTriggered(QAction*))
+    , this, SLOT(actionTriggered(QAction*)));
+
 //     qApp->installEventFilter(this);
 //     m_view->focusProxy()->installEventFilter(this);
 //     KTextEditor::Message * message = new KTextEditor::Message("start record");
@@ -243,18 +198,20 @@ bool KeyRecorderView::eventFilter(QObject* obj, QEvent* event)
     qDebug() << "ShortcutOverride ";
   }
   if (type == QEvent::FocusOut) {
-    if (qApp->focusWidget()) {
+    auto focus_widget = qApp->focusWidget();
+    if (focus_widget) {
       event_obj->removeEventFilter(this);
-      event_obj = qApp->focusWidget();
+      event_obj = focus_widget;
       event_obj->installEventFilter(this);
+      in_context_menu = qobject_cast<QMenu*>(focus_widget);
     }
-    qDebug() << "focusOut " << obj << ' ' << qApp->focusWidget();
+    qDebug() << "focusOut " << obj << ' ' << focus_widget;
   }
   if (type == QEvent::FocusIn) {
     qDebug() << "focusIn " << obj;
   }
 
-  if ((type == QEvent::KeyPress
+  if (!in_context_menu && (type == QEvent::KeyPress
     || type == QEvent::KeyRelease
    //|| type == QEvent::ShortcutOverride
    // vimode double event filter
@@ -272,10 +229,11 @@ bool KeyRecorderView::eventFilter(QObject* obj, QEvent* event)
         break;
       default:
       kevents.append({
-        event->type()
-      , kevent->key()
-      , kevent->modifiers()
+        nullptr
       , kevent->text()
+      , event->type()
+      , kevent->modifiers()
+      , kevent->key()
       });
     }
     using P = void*;
