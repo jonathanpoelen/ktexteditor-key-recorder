@@ -7,6 +7,12 @@
 #include <KXMLGUIClient>
 
 class QAction;
+class QLabel;
+class KAction;
+
+namespace KTextEditor {
+  class Message;
+}
 
 class KeyRecorderView : public QObject, public KXMLGUIClient
 {
@@ -15,14 +21,15 @@ public:
   explicit KeyRecorderView(KTextEditor::View *view = 0);
   ~KeyRecorderView();
 
+public slots:
+  void recording();
+  void replay();
+
 private slots:
-  void insertKeyRecorder();
   void actionTriggered(QAction*);
 
 private:
   bool eventFilter(QObject* obj, QEvent* event);
-
-  KTextEditor::View *m_view;
 
   struct Key {
     QAction * action;
@@ -32,10 +39,18 @@ private:
     int key;
   };
 
+  enum class Mode { wait, recording, replay, };
+
+  KTextEditor::View *m_view;
   QList<Key> kevents;
   QObject * event_obj = nullptr;
-  bool recording = false;
+  KAction * recording_action;
+  KAction * replay_action;
+  QLabel * info_recording = nullptr;
+  Mode mode = Mode::wait;
   bool in_context_menu = false;
+
+  class Lock;
 };
 
 #endif

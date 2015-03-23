@@ -3,7 +3,8 @@
 <MenuBar>
  <Menu name="tools"><Text>&amp;Tools</Text>
     <separator group="tools_operations" />
-    <Action name="tools_keyrecorder" group="tools_operations"/>
+    <Action name="tools_keyrecorder_recorder" group="tools_operations"/>
+    <Action name="tools_keyrecorder_replay" group="tools_operations"/>
  </Menu>
 </MenuBar>
 </kpartplugin>
