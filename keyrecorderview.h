@@ -6,51 +6,34 @@
 #include <QKeyEvent>
 #include <KXMLGUIClient>
 
-class QAction;
-class QLabel;
-class KAction;
-
 namespace KTextEditor {
-  class Message;
+  class View;
 }
+
+class KeyRecorderPlugin;
+class KAction;
+class QLabel;
 
 class KeyRecorderView : public QObject, public KXMLGUIClient
 {
 	Q_OBJECT
 public:
-  explicit KeyRecorderView(KTextEditor::View *view = 0);
+  explicit KeyRecorderView(KeyRecorderPlugin * plugin, KTextEditor::View * view);
   ~KeyRecorderView();
 
-public slots:
-  void recording();
-  void replay();
-
 private slots:
-  void actionTriggered(QAction*);
+  void recording();
 
 private:
-  bool eventFilter(QObject* obj, QEvent* event);
+  void activateRecording();
+  void deactivateRecording();
 
-  struct Key {
-    QAction * action;
-    QString text;
-    QEvent::Type type;
-    Qt::KeyboardModifiers modifiers;
-    int key;
-  };
+  KeyRecorderPlugin * m_plugin;
+  KTextEditor::View * m_view;
+  KAction * m_recording_action;
+  QLabel * m_info_recording = nullptr;
 
-  enum class Mode { wait, recording, replay, };
-
-  KTextEditor::View *m_view;
-  QList<Key> kevents;
-  QObject * event_obj = nullptr;
-  KAction * recording_action;
-  KAction * replay_action;
-  QLabel * info_recording = nullptr;
-  Mode mode = Mode::wait;
-  bool in_context_menu = false;
-
-  class Lock;
+  friend KeyRecorderPlugin;
 };
 
 #endif

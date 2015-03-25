@@ -40,8 +40,14 @@ KeyRecorderPlugin::~KeyRecorderPlugin()
 
 void KeyRecorderPlugin::addView(KTextEditor::View *view)
 {
-	KeyRecorderView *nview = new KeyRecorderView(view);
-	m_views.append(nview);
+  KeyRecorderView *nview = new KeyRecorderView(this, view);
+  m_views.append(nview);
+  if (m_mode == Mode::recording) {
+    nview->activateRecording();
+    m_event_obj->removeEventFilter(this);
+    m_event_obj = view->focusProxy();
+    m_event_obj->installEventFilter(this);
+  }
 }
 
 void KeyRecorderPlugin::removeView(KTextEditor::View *view)
@@ -65,59 +71,11 @@ void KeyRecorderPlugin::writeConfig()
 {
 }
 
-
-
-static QString startRecordingText() {
-  return i18n("Start record keystroke");
-};
-static QString stopRecordingText() {
-  return i18n("Stop record keystroke");
-};
-
-
-KeyRecorderView::KeyRecorderView(KTextEditor::View *view)
-: QObject(view)
-, KXMLGUIClient(view)
-, m_view(view)
+void KeyRecorderPlugin::actionTriggered(QAction* a)
 {
-	setComponentData(KeyRecorderPluginFactory::componentData());
-
-	KAction *action;
-
-  action = recording_action = new KAction(startRecordingText(), this);
-  actionCollection()->addAction("tools_keyrecorder_recorder", action);
-	//action->setShortcut(Qt::CTRL + Qt::Key_XYZ);
-	connect(action, SIGNAL(triggered()), this, SLOT(recording()));
-
-  action = replay_action = new KAction(i18n("Replay keystroke"), this);
-  action->setDisabled(true);
-	actionCollection()->addAction("tools_keyrecorder_replay", action);
-  connect(action, SIGNAL(triggered()), this, SLOT(replay()));
-
-	setXMLFile("keyrecorderui.rc");
-}
-
-KeyRecorderView::~KeyRecorderView()
-{
-  if (info_recording) {
-    info_recording->deleteLater();
-  }
-}
-
-
-// // editor is of type KTextEditor::Editor*
-// KTextEditor::CommandInterface *iface =
-// qobject_cast<KTextEditor::CommandInterface*>( editor );
-// if( iface ) {
-// // the implementation supports the interface
-// // do stuff
-// }
-
-
-void KeyRecorderView::actionTriggered(QAction* a)
-{
+  qDebug() << "triggered";
   // TODO What to do if "A" is destroyed? Search by name?
-  kevents.append(KeyRecorderView::Key{
+  m_kevents.append(Key{
     a
   , {} /*a->objectName()*/
   , QEvent::Type()
@@ -126,9 +84,9 @@ void KeyRecorderView::actionTriggered(QAction* a)
   });
 }
 
-struct KeyRecorderView::Lock {
-  Lock(KeyRecorderView * k, Mode new_mode)
-  : m(k->mode)
+struct KeyRecorderPlugin::Lock {
+  Lock(KeyRecorderPlugin * k, Mode new_mode)
+  : m(k->m_mode)
   { m = new_mode; }
 
   ~Lock()
@@ -138,15 +96,16 @@ private:
   Mode & m;
 };
 
-void KeyRecorderView::replay()
+void KeyRecorderPlugin::replay()
 {
-  if (mode != Mode::wait) {
+  if (m_mode != Mode::wait) {
     return ;
   }
 
   Lock lock(this, Mode::replay);
 
-  for (auto & kevent : kevents) {
+  for (auto & kevent : m_kevents) {
+    qDebug() << kevent.text;
     if (kevent.action) {
       kevent.action->trigger();
     }
@@ -159,37 +118,27 @@ void KeyRecorderView::replay()
   }
 }
 
-void KeyRecorderView::recording()
+void KeyRecorderPlugin::recording(KTextEditor::View * view)
 {
-  if (mode == Mode::recording) {
-    disconnect(m_view->actionCollection(), SIGNAL(actionTriggered(QAction*))
-    , this, SLOT(actionTriggered(QAction*)));
-    event_obj->removeEventFilter(this);
-    event_obj = nullptr;
-    mode = Mode::wait;
-    recording_action->setText(startRecordingText());
-    replay_action->setDisabled(false);
-
-    if (QLayout * layout = m_view->layout()) {
-      layout->removeWidget(info_recording);
-      info_recording->setParent(nullptr);
+  if (m_mode == Mode::recording) {
+    for (KeyRecorderView * v : m_views) {
+      v->deactivateRecording();
     }
+    if (m_event_obj) {
+      m_event_obj->removeEventFilter(this);
+      m_event_obj = nullptr;
+    }
+    m_mode = Mode::wait;
+    //replay_action->setDisabled(false);
   }
-  else if (mode == Mode::wait) {
-    mode = Mode::recording;
-    in_context_menu = false;
-    event_obj = m_view->focusProxy();
-    event_obj->installEventFilter(this);
-    connect(m_view->actionCollection(), SIGNAL(actionTriggered(QAction*))
-    , this, SLOT(actionTriggered(QAction*)));
-    recording_action->setText(stopRecordingText());
-
-    if (QLayout * layout = m_view->layout()) {
-      if (!info_recording) {
-        info_recording = new QLabel(i18n("<b>Record</b> keystroke"));
-      }
-      info_recording->setParent(m_view);
-      layout->addWidget(info_recording);
+  else if (m_mode == Mode::wait) {
+    m_kevents.clear();
+    m_mode = Mode::recording;
+    m_in_context_menu = false;
+    m_event_obj = view->focusProxy();
+    m_event_obj->installEventFilter(this);
+    for (KeyRecorderView * v : m_views) {
+      v->activateRecording();
     }
 
 //     KTextEditor::MessageInterface *iface
@@ -197,7 +146,7 @@ void KeyRecorderView::recording()
 //
 //     if (iface) {
 //       KTextEditor::Message * message = new KTextEditor::Message(
-//         startRecordingText()
+//         recordingText()
 //       , KTextEditor::Message::Information);
 //       message.setText();
 //   //     message->setView(m_view);
@@ -208,20 +157,21 @@ void KeyRecorderView::recording()
   }
 }
 
-bool KeyRecorderView::eventFilter(QObject* obj, QEvent* event)
+bool KeyRecorderPlugin::eventFilter(QObject* obj, QEvent* event)
 {
   QEvent::Type const type = event->type();
 
   if (type == QEvent::FocusOut) {
     auto * focus_widget = qApp->focusWidget();
     if (focus_widget) {
-      event_obj->removeEventFilter(this);
-      event_obj = focus_widget;
-      event_obj->installEventFilter(this);
-      in_context_menu = qobject_cast<QMenu*>(focus_widget);
+      qDebug() << "focus: " << focus_widget;
+      m_event_obj->removeEventFilter(this);
+      m_event_obj = focus_widget;
+      m_event_obj->installEventFilter(this);
+      m_in_context_menu = qobject_cast<QMenu*>(obj);
     }
   }
-  else if (!in_context_menu && (
+  else if (!m_in_context_menu && (
       type == QEvent::KeyPress
    || type == QEvent::KeyRelease
    //|| type == QEvent::ShortcutOverride
@@ -229,6 +179,8 @@ bool KeyRecorderView::eventFilter(QObject* obj, QEvent* event)
    ) && event->spontaneous()
   ) {
     const auto kevent = static_cast<QKeyEvent*>(event);
+
+    qDebug() << event;
 
     switch (kevent->key()) {
       //BEGIN modifiers
@@ -240,7 +192,7 @@ bool KeyRecorderView::eventFilter(QObject* obj, QEvent* event)
         break;
       //END
       default:
-      kevents.append({
+      m_kevents.append({
         nullptr
       , kevent->text()
       , event->type()
@@ -254,4 +206,84 @@ bool KeyRecorderView::eventFilter(QObject* obj, QEvent* event)
   return QObject::eventFilter(obj, event);
 }
 
+
+static QString startRecordingText() {
+  static QString const s = i18n("Start Record Keystroke");
+  return s;
+};
+
+static QString stopRecordingText() {
+  static QString const s = i18n("Stop Record Keystroke");
+  return s;
+};
+
+
+KeyRecorderView::KeyRecorderView(KeyRecorderPlugin * plugin, KTextEditor::View *view)
+: QObject(view)
+, KXMLGUIClient(view)
+, m_plugin(plugin)
+, m_view(view)
+{
+	setComponentData(KeyRecorderPluginFactory::componentData());
+
+	KAction *action;
+
+  action = m_recording_action = new KAction(startRecordingText(), this);
+  actionCollection()->addAction("tools_keyrecorder_recorder", action);
+	//action->setShortcut(Qt::CTRL + Qt::Key_XYZ);
+	connect(action, SIGNAL(triggered()), this, SLOT(recording()));
+
+  action = /*m_replay_action = */new KAction(i18n("Replay keystroke"), this);
+  //action->setDisabled(true);
+	actionCollection()->addAction("tools_keyrecorder_replay", action);
+  connect(action, SIGNAL(triggered()), m_plugin, SLOT(replay()));
+
+	setXMLFile("keyrecorderui.rc");
+}
+
+KeyRecorderView::~KeyRecorderView()
+{
+  m_info_recording->deleteLater();
+}
+
+void KeyRecorderView::recording()
+{
+  m_plugin->recording(m_view);
+}
+
+void KeyRecorderView::activateRecording()
+{
+  if (QLayout * layout = m_view->layout()) {
+    if (!m_info_recording) {
+      m_info_recording = new QLabel(i18n("<b>Record</b> keystroke"));
+    }
+    m_info_recording->setParent(m_view);
+    layout->addWidget(m_info_recording);
+  }
+  connect(m_view->actionCollection(), SIGNAL(actionTriggered(QAction*))
+  , m_plugin, SLOT(actionTriggered(QAction*)));
+  m_recording_action->setText(stopRecordingText());
+}
+
+void KeyRecorderView::deactivateRecording()
+{
+  if (QLayout * layout = m_view->layout()) {
+    layout->removeWidget(m_info_recording);
+  }
+  m_info_recording->setParent(nullptr);
+  disconnect(m_view->actionCollection(), SIGNAL(actionTriggered(QAction*))
+  , m_plugin, SLOT(actionTriggered(QAction*)));
+  m_recording_action->setText(startRecordingText());
+}
+
+
+// // editor is of type KTextEditor::Editor*
+// KTextEditor::CommandInterface *iface =
+// qobject_cast<KTextEditor::CommandInterface*>( editor );
+// if( iface ) {
+// // the implementation supports the interface
+// // do stuff
+// }
+
 #include "keyrecorderview.moc"
+#include "keyrecorderplugin.moc"
