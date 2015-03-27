@@ -1,10 +1,18 @@
 <!DOCTYPE kpartgui>
-<kpartplugin name="ktexteditor_keyrecorder" library="ktexteditor_keyrecorder" version="2">
+<kpartplugin name="ktexteditor_keyrecorder" library="ktexteditor_keyrecorder" version="3">
 <MenuBar>
  <Menu name="tools"><Text>&amp;Tools</Text>
-    <separator group="tools_operations" />
-    <Action name="tools_keyrecorder_recorder" group="tools_operations"/>
-    <Action name="tools_keyrecorder_replay" group="tools_operations"/>
+  <separator group="tools_operations" />
+  <Menu name="tools_keyrecorder"><text>Key &amp;recorder</text>
+    <Action name="tools_keyrecorder_recorder1" group="tools_operations"/>
+    <Action name="tools_keyrecorder_replay1" group="tools_operations"/>
+    <Action name="tools_keyrecorder_recorder2" group="tools_operations"/>
+    <Action name="tools_keyrecorder_replay2" group="tools_operations"/>
+    <Action name="tools_keyrecorder_recorder3" group="tools_operations"/>
+    <Action name="tools_keyrecorder_replay3" group="tools_operations"/>
+  </Menu>
+  <Action name="tools_keyrecorder_replay" group="tools_operations"/>
+  <Action name="tools_keyrecorder_stop" group="tools_operations"/>
  </Menu>
 </MenuBar>
 </kpartplugin>

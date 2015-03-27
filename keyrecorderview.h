@@ -22,16 +22,26 @@ public:
   ~KeyRecorderView();
 
 private slots:
-  void recording();
+  void recording1();
+  void recording2();
+  void recording3();
+  void replay1();
+  void replay2();
+  void replay3();
 
 private:
-  void activateRecording();
-  void deactivateRecording();
+  void activateRecording(unsigned);
+  void deactivateRecording(unsigned);
 
   KeyRecorderPlugin * m_plugin;
   KTextEditor::View * m_view;
-  KAction * m_recording_action;
-  QLabel * m_info_recording = nullptr;
+  struct Widget {
+    KAction * recording;
+    KAction * replay;
+  } m_widgets[3];
+  QLabel * m_info;
+  KAction * m_replay_action;
+  KAction * m_stop_action;
 
   friend KeyRecorderPlugin;
 };

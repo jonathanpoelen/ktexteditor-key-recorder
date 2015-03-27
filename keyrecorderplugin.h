@@ -22,8 +22,8 @@ public:
   // Destructor
   virtual ~KeyRecorderPlugin();
 
-  void addView (KTextEditor::View *view);
-  void removeView (KTextEditor::View *view);
+  void addView(KTextEditor::View *view);
+  void removeView(KTextEditor::View *view);
 
   void readConfig();
   void writeConfig();
@@ -32,10 +32,12 @@ public:
   //void writeConfig (KConfig *);
 
 public:
-  void recording(KTextEditor::View * view);
+  void recording(KTextEditor::View * view, unsigned record_idx);
 
 public slots:
+  void replay(unsigned record_idx);
   void replay();
+  void stop();
 
 private slots:
   void actionTriggered(QAction*);
@@ -45,7 +47,7 @@ private:
 
   QList<KeyRecorderView*> m_views;
 
-  struct Key {
+  struct Event {
     QAction * action;
     QString text;
     QEvent::Type type;
@@ -55,10 +57,11 @@ private:
 
   enum class Mode { wait, recording, replay, };
 
-  QList<Key> m_kevents;
+  QList<Event> m_events_list[4];
   QObject * m_event_obj = nullptr;
   Mode m_mode = Mode::wait;
-  bool m_in_context_menu = false;
+  unsigned m_record_idx;
+  bool m_in_context_menu;
 
   class Lock;
 };
