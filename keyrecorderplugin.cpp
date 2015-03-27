@@ -73,7 +73,7 @@ void KeyRecorderPlugin::writeConfig()
 
 void KeyRecorderPlugin::actionTriggered(QAction* a)
 {
-  qDebug() << "triggered";
+  //qDebug() << "triggered";
   // TODO What to do if "A" is destroyed? Search by name?
   m_kevents.append(Key{
     a
@@ -105,7 +105,7 @@ void KeyRecorderPlugin::replay()
   Lock lock(this, Mode::replay);
 
   for (auto & kevent : m_kevents) {
-    qDebug() << kevent.text;
+    //qDebug() << kevent.text;
     if (kevent.action) {
       kevent.action->trigger();
     }
@@ -164,11 +164,11 @@ bool KeyRecorderPlugin::eventFilter(QObject* obj, QEvent* event)
   if (type == QEvent::FocusOut) {
     auto * focus_widget = qApp->focusWidget();
     if (focus_widget) {
-      qDebug() << "focus: " << focus_widget;
+      //qDebug() << "focus: " << focus_widget;
       m_event_obj->removeEventFilter(this);
       m_event_obj = focus_widget;
       m_event_obj->installEventFilter(this);
-      m_in_context_menu = qobject_cast<QMenu*>(obj);
+      m_in_context_menu = qobject_cast<QMenu*>(focus_widget);
     }
   }
   else if (!m_in_context_menu && (
@@ -180,7 +180,7 @@ bool KeyRecorderPlugin::eventFilter(QObject* obj, QEvent* event)
   ) {
     const auto kevent = static_cast<QKeyEvent*>(event);
 
-    qDebug() << event;
+    //qDebug() << event;
 
     switch (kevent->key()) {
       //BEGIN modifiers
