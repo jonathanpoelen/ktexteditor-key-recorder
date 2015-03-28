@@ -139,14 +139,21 @@ void KeyRecorderPlugin::replay(unsigned record_idx)
   Lock lock(this, Mode::replay);
 
   for (auto & kevent : m_events_list[record_idx]) {
-    qDebug() << kevent.text;
+    //qDebug() << kevent.text;
     if (kevent.action) {
-      kevent.action->trigger();
+      if (auto action
+        = m_views.front()
+        ->m_view
+        ->document()
+        ->activeView()
+        ->actionCollection()
+        ->findChild<QAction*>(kevent.text)
+      ) {
+        action->trigger();
+      }
     }
     else {
-      QKeyEvent event(
-        kevent.text.isEmpty() ? QEvent::KeyPress : kevent.type
-      , kevent.key, kevent.modifiers, kevent.text);
+      QKeyEvent event(kevent.type, kevent.key, kevent.modifiers, kevent.text);
       QApplication::sendEvent(qApp->focusWidget(), &event);
     }
   }
@@ -215,11 +222,10 @@ void KeyRecorderPlugin::actionTriggered(QAction* a)
   if (m_mode != Mode::recording) {
     return;
   }
-  qDebug() << "triggered";
-  // TODO What to do if "a" is destroyed? Search by name?
+  //qDebug() << "triggered";
   last_events(m_events_list).append(Event{
     a
-  , {} /*a->objectName()*/
+  , a->objectName()
   , QEvent::Type()
   , 0
   , 0
@@ -228,43 +234,28 @@ void KeyRecorderPlugin::actionTriggered(QAction* a)
 
 bool KeyRecorderPlugin::eventFilter(QObject* obj, QEvent* event)
 {
-  if (m_mode != Mode::recording) {
-    return QObject::eventFilter(obj, event);
-  }
-
   QEvent::Type const type = event->type();
 
   if (type == QEvent::FocusOut) {
     auto * focus_widget = qApp->focusWidget();
     if (focus_widget) {
-      qDebug() << "focus: " << focus_widget;
+      //qDebug() << "focus: " << focus_widget;
       m_event_obj->removeEventFilter(this);
       m_event_obj = focus_widget;
       m_event_obj->installEventFilter(this);
       m_in_context_menu = qobject_cast<QMenu*>(focus_widget);
     }
   }
-  else if (!m_in_context_menu && (
+  else if (!m_in_context_menu && /*m_mode == Mode::recording &&*/ (
       type == QEvent::KeyPress
    || type == QEvent::KeyRelease
-   //|| type == QEvent::ShortcutOverride
    // vimode double event filter
    ) && event->spontaneous()
   ) {
     const auto kevent = static_cast<QKeyEvent*>(event);
 
-    qDebug() << event <<  "  " << kevent->key();
-
-    switch (kevent->key()) {
-      //BEGIN modifiers
-      case 16777248:
-      case 16777249:
-      case 16777250:
-      case 16777251:
-      case 16781571:
-        break;
-      //END
-      default:
+    if (!kevent->text().isEmpty()) {
+      //qDebug() << event;
       last_events(m_events_list).append({
         nullptr
       , kevent->text()
@@ -273,6 +264,7 @@ bool KeyRecorderPlugin::eventFilter(QObject* obj, QEvent* event)
       , kevent->key()
       });
     }
+
     return false;
   }
 
