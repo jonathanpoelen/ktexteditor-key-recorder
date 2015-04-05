@@ -83,7 +83,9 @@ void KeyRecorderPlugin::addView(KTextEditor::View *view)
   if (m_mode == Mode::recording) {
     nview->activateRecording(m_record_idx);
     nview->m_stop_action->setDisabled(false);
-    m_event_obj->removeEventFilter(this);
+    if (m_event_obj) {
+      m_event_obj->removeEventFilter(this);
+    }
     m_event_obj = view->focusProxy();
     m_event_obj->installEventFilter(this);
   }
@@ -140,21 +142,19 @@ void KeyRecorderPlugin::replay(unsigned record_idx)
 
   for (auto & kevent : m_events_list[record_idx]) {
     //qDebug() << kevent.text;
+    auto w = qApp->focusWidget();
+    if (!w) {
+      break;
+    }
+
     if (kevent.action) {
-      if (auto action
-        = m_views.front()
-        ->m_view
-        ->document()
-        ->activeView()
-        ->actionCollection()
-        ->findChild<QAction*>(kevent.text)
-      ) {
+      if (auto action = w->findChild<QAction*>(kevent.text)) {
         action->trigger();
       }
     }
     else {
       QKeyEvent event(kevent.type, kevent.key, kevent.modifiers, kevent.text);
-      QApplication::sendEvent(qApp->focusWidget(), &event);
+      QApplication::sendEvent(w, &event);
     }
   }
 }
@@ -237,10 +237,14 @@ bool KeyRecorderPlugin::eventFilter(QObject* obj, QEvent* event)
   QEvent::Type const type = event->type();
 
   if (type == QEvent::FocusOut) {
+    if (m_event_obj) {
+      m_event_obj->removeEventFilter(this);
+    }
+    m_event_obj = nullptr;
+  }
+  else if (type == QEvent::FocusIn) {
     auto * focus_widget = qApp->focusWidget();
     if (focus_widget) {
-      //qDebug() << "focus: " << focus_widget;
-      m_event_obj->removeEventFilter(this);
       m_event_obj = focus_widget;
       m_event_obj->installEventFilter(this);
       m_in_context_menu = qobject_cast<QMenu*>(focus_widget);
